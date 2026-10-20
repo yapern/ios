@@ -11,7 +11,7 @@ nonisolated struct MessageAPI: Sendable {
     private static let publicKey = "bff_pk_1f9bb9fd543d6a5476ad7ce210577c2479d290a5cdc06282de9eb884d57005c4"
     private static let projectID = "90da3093-84b6-4cd7-a39a-a8afc39403b8"
 
-    init(session: URLSession = .shared, baseURL: URL = URL(string: "https://api.mainbrella.com")!) {
+    init(session: URLSession = .shared, baseURL: URL = URL(string: "https://api.yapern.com")!) {
         self.session = session
         self.baseURL = baseURL
     }
