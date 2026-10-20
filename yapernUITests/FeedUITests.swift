@@ -2,14 +2,15 @@ import XCTest
 
 final class FeedUITests: XCTestCase {
     @MainActor
-    func testLiveFeedDetailFilterAndScrolling() throws {
+    func testFeedDetailFilterAndScrolling() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["--ui-testing"]
         app.launch()
 
         let feed = app.scrollViews["feed.scroll"]
         XCTAssertTrue(feed.waitForExistence(timeout: 5))
         let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "feed.message."))
-        XCTAssertTrue(titles.firstMatch.waitForExistence(timeout: 25), "Production feed should load")
+        XCTAssertTrue(titles.firstMatch.waitForExistence(timeout: 25), "Feed should load")
         feed.swipeDown()
         XCTAssertTrue(titles.firstMatch.waitForExistence(timeout: 20))
         attachScreenshot("Latest messages")
@@ -41,6 +42,7 @@ final class FeedUITests: XCTestCase {
     func testAccessibilityTextAndLandscapeLayout() {
         let app = XCUIApplication()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments += ["--ui-testing"]
         app.launch()
         let title = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "feed.message.")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 25))

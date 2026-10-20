@@ -29,11 +29,25 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference skipped="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A10000000000000000000004" BuildableName="yapernTests.xctest" BlueprintName="yapernTests" ReferencedContainer="container:yapern.xcodeproj"/>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A10000000000000000000004"
+               BuildableName = "yapernTests.xctest"
+               BlueprintName = "yapernTests"
+               ReferencedContainer = "container:yapern.xcodeproj">
+            </BuildableReference>
          </TestableReference>
-         <TestableReference skipped="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="A20000000000000000000004" BuildableName="yapernUITests.xctest" BlueprintName="yapernUITests" ReferencedContainer="container:yapern.xcodeproj"/>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A20000000000000000000004"
+               BuildableName = "yapernUITests.xctest"
+               BlueprintName = "yapernUITests"
+               ReferencedContainer = "container:yapern.xcodeproj">
+            </BuildableReference>
          </TestableReference>
       </Testables>
    </TestAction>

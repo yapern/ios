@@ -42,3 +42,15 @@ nonisolated struct MessageAuthor: Decodable, Sendable {
     let id: String
     let name: String
 }
+
+/// Keeps each detail tied to the feed that opened it, including board feeds.
+nonisolated struct MessageRoute: Hashable {
+    let message: Message
+    let store: FeedStore
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.message == rhs.message && lhs.store === rhs.store }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(message)
+        hasher.combine(ObjectIdentifier(store))
+    }
+}

@@ -37,6 +37,15 @@ final class MessageContentTests: XCTestCase {
         }
     }
 
+    func testExtensionlessPreviewFirstLineAndJPEGImages() {
+        let body = "https://cdn.example.com/preview?id=123\nhttps://example.com/article\n\nAn article"
+        let parts = MessageContent.parse(body)
+        XCTAssertEqual(parts.map(\.text).joined(), body)
+        XCTAssertEqual(parts.first?.imageURL?.host, "cdn.example.com")
+        XCTAssertNil(parts.first(where: { $0.url?.host == "example.com" })?.imageURL)
+        XCTAssertNotNil(MessageContent.parse("https://example.com/photo.jpeg").first?.imageURL)
+    }
+
     func testYouTubeWatchLinksRequireExactHostAndValidID() {
         XCTAssertEqual(MessageContent.parse("youtube.com/watch?v=issziaa-dtY&t=45s").first?.youtubeVideoID, "issziaa-dtY")
         for body in [

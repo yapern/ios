@@ -5,6 +5,9 @@ import Observation
 final class FeedStore {
     private(set) var messages: [Message] = []
     private(set) var boards: [Board] = []
+    private(set) var boardsError: String?
+    private(set) var isLoadingBoards = false
+    private(set) var hasLoadedBoards = false
     private(set) var isRefreshing = false
     private(set) var isLoadingMore = false
     private(set) var hasLoaded = false
@@ -16,7 +19,7 @@ final class FeedStore {
     private var authorNames: [String: String] = [:]
     private var nextOffset = 0
     private var requestVersion = 0
-    private let api: MessageAPI
+    let api: MessageAPI
 
     init(api: MessageAPI = MessageAPI()) {
         self.api = api
@@ -48,7 +51,7 @@ final class FeedStore {
         }
 
         // Metadata failures must not prevent people from reading messages.
-        async let fetchedBoards = try? api.fetchBoards()
+        async let fetchedBoards: Void = loadBoards()
         do {
             let page = try await api.fetchMessages(offset: 0, boardID: selectedBoardID)
             try Task.checkCancellation()
@@ -57,9 +60,7 @@ final class FeedStore {
             nextOffset = page.count
             canLoadMore = page.count == MessageAPI.pageSize
             hasLoaded = true
-            if let fetchedBoards = await fetchedBoards, version == requestVersion {
-                boards = fetchedBoards
-            }
+            await fetchedBoards
             guard version == requestVersion else { return }
             // Refresh author names too, so web account name changes appear here.
             await loadAuthors(Set(page.map(\.userID)), forceRefresh: true)
@@ -90,6 +91,35 @@ final class FeedStore {
         } catch {
             guard version == requestVersion, !Task.isCancelled else { return }
             paginationError = Self.readableError(error)
+        }
+    }
+
+    func loadBoards() async {
+        guard !isLoadingBoards else { return }
+        isLoadingBoards = true
+        boardsError = nil
+        defer { isLoadingBoards = false }
+        do {
+            let result = try await api.fetchBoards()
+            try Task.checkCancellation()
+            boards = result
+            hasLoadedBoards = true
+        } catch {
+            if !Task.isCancelled { boardsError = Self.readableError(error) }
+        }
+    }
+
+    func setAuthorName(_ name: String, for id: String?) {
+        if let id, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { authorNames[id] = name }
+    }
+
+    func removeMessage(_ message: Message) {
+        requestVersion += 1
+        isLoadingMore = false
+        isRefreshing = false
+        if messages.contains(where: { $0.id == message.id }) {
+            messages.removeAll { $0.id == message.id }
+            nextOffset = max(0, nextOffset - 1)
         }
     }
 

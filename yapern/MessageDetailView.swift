@@ -3,6 +3,15 @@ import SwiftUI
 struct MessageDetailView: View {
     let message: Message
     let store: FeedStore
+    @Environment(AccountStore.self) private var account
+    @Environment(FeedStore.self) private var mainFeed
+    @Environment(\.dismiss) private var dismiss
+    @State private var showReply = false
+    @State private var showSignIn = false
+    @State private var replyAfterSignIn = false
+    @State private var confirmDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
 
     @State private var replies: [Reply] = []
     @State private var isLoadingReplies = true
@@ -77,7 +86,56 @@ struct MessageDetailView: View {
                     .accessibilityLabel("Share message")
                 }
             }
+            if account.userID == message.userID {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Delete message", role: .destructive) { confirmDelete = true }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44)
+                    }
+                    .disabled(deleting)
+                    .accessibilityLabel("Message actions")
+                    .accessibilityIdentifier("detail.actions")
+                }
+            }
         }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Button {
+                    if account.isSignedIn { showReply = true }
+                    else { replyAfterSignIn = true; showSignIn = true }
+                } label: {
+                    Label("Reply to this message", systemImage: "arrowshape.turn.up.left")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("detail.reply")
+                .disabled(deleting)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
+        .refreshable { await fetchReplies() }
+        .sheet(isPresented: $showReply) {
+            ReplyComposer(message: message) { reply in
+                replies.removeAll { $0.id == reply.id }
+                replies.append(reply)
+                store.setAuthorName(account.profileName, for: account.userID)
+            }
+        }
+        .sheet(isPresented: $showSignIn, onDismiss: {
+            if replyAfterSignIn && account.isSignedIn { showReply = true }
+            replyAfterSignIn = false
+        }) { SignInView() }
+        .confirmationDialog("Delete this message?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete message", role: .destructive) { Task { await deleteMessage() } }
+        } message: { Text("This also deletes its replies. This cannot be undone.") }
+        .alert("Couldn’t delete message", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("OK", role: .cancel) { deleteError = nil }
+        } message: { Text(deleteError ?? "") }
+        .overlay { if deleting { ProgressView("Deleting…").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
         .task(id: message.id) { await fetchReplies() }
         .tint(FeedStyle.accent)
     }
@@ -151,11 +209,27 @@ struct MessageDetailView: View {
         repliesError = nil
         defer { isLoadingReplies = false }
         do {
-            replies = try await store.loadReplies(for: message.id)
+            let loaded = try await store.loadReplies(for: message.id)
+            var byID = Dictionary(loaded.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+            for reply in replies { byID[reply.id] = reply }
+            replies = byID.values.sorted { $0.createdAt < $1.createdAt }
         } catch is CancellationError {
             return
         } catch {
             repliesError = error.localizedDescription
         }
     }
+    @MainActor
+    private func deleteMessage() async {
+        guard !deleting else { return }
+        deleting = true
+        defer { deleting = false }
+        do {
+            try await account.authenticated { try await account.api.deleteMessage(message, current: $0) }
+            store.removeMessage(message)
+            if store !== mainFeed { mainFeed.removeMessage(message) }
+            dismiss()
+        } catch { deleteError = error.localizedDescription }
+    }
+
 }

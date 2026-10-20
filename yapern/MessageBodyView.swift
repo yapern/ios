@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MessageBodyView: View {
     let messageBody: String
-    var navigationMessage: Message? = nil
+    var navigationRoute: MessageRoute? = nil
 
     private enum Block {
         case text([MessageContent.Part])
@@ -79,34 +79,36 @@ struct MessageBodyView: View {
 
     @ViewBuilder
     private func image(url: URL, label: String) -> some View {
-        let imageView = GeometryReader { proxy in
-            ZStack {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: proxy.size.width, height: proxy.size.height)
-                            .accessibilityLabel(label.isEmpty ? "Attached image" : label)
-                    case .failure:
-                        mediaPlaceholder(symbol: "photo", title: "Image unavailable")
-                    case .empty:
-                        mediaPlaceholder(symbol: "photo", title: "Loading image")
-                    @unknown default:
-                        mediaPlaceholder(symbol: "photo", title: "Image unavailable")
+        let imageView = AsyncImage(url: url) { phase in
+            if phase.error != nil {
+                // A metadata preview may be an extensionless URL. Restore its
+                // readable link if it cannot be displayed as an image.
+                Label(label.isEmpty ? "Open image" : label, systemImage: "link")
+                    .font(.subheadline)
+                    .foregroundStyle(FeedStyle.accent)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                GeometryReader { proxy in
+                    Group {
+                        if let image = phase.image {
+                            image.resizable().scaledToFit()
+                                .accessibilityLabel(label.isEmpty ? "Attached image" : label)
+                        } else {
+                            mediaPlaceholder(symbol: "photo", title: "Loading image")
+                        }
                     }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .background(Color.white.opacity(0.035))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .frame(maxHeight: 320)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(Color.white.opacity(0.035))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
-        .aspectRatio(16 / 9, contentMode: .fit)
-        .frame(maxHeight: 320)
 
-        if let navigationMessage {
-            NavigationLink(value: navigationMessage) { imageView }
+        if let navigationRoute {
+            NavigationLink(value: navigationRoute) { imageView }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open attached image in message detail")
         } else {

@@ -23,10 +23,15 @@ struct MessageRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(boardName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(FeedStyle.accent)
-                    .lineLimit(1)
+                if let board = store.board(for: message) {
+                    NavigationLink(value: board) {
+                        Text(boardName).font(.subheadline.weight(.semibold)).foregroundStyle(FeedStyle.accent).lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(board.name) sub-yap")
+                } else {
+                    Text(boardName).font(.subheadline.weight(.semibold)).foregroundStyle(FeedStyle.accent)
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(authorName)
                         .font(.subheadline)
@@ -43,7 +48,7 @@ struct MessageRow: View {
                 }
             }
 
-            NavigationLink(value: message) {
+            NavigationLink(value: MessageRoute(message: message, store: store)) {
                 Text(message.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Untitled message" : message.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(FeedStyle.text)
@@ -54,9 +59,16 @@ struct MessageRow: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("feed.message.\(message.id)")
 
-            MessageBodyView(messageBody: message.body, navigationMessage: message)
+            MessageBodyView(messageBody: message.body, navigationRoute: MessageRoute(message: message, store: store))
 
             HStack {
+                NavigationLink(value: MessageRoute(message: message, store: store)) {
+                    Label("Reply", systemImage: "bubble.left")
+                        .font(.subheadline)
+                        .foregroundStyle(FeedStyle.muted)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 if let url = store.messageURL(for: message) {
                     ShareLink(item: url) {

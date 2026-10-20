@@ -1,11 +1,11 @@
 import Foundation
 
-/// Uses the same public, read-only requests as the Yapern website.
+/// Shares the website’s table, authentication, and link preview API.
 nonisolated struct MessageAPI: Sendable {
     static let pageSize = 20
 
-    private let session: URLSession
-    private let baseURL: URL
+    let session: URLSession
+    let baseURL: URL
 
     init(session: URLSession = .shared, baseURL: URL = URL(string: "https://api.yapern.com")!) {
         self.session = session
@@ -78,31 +78,8 @@ nonisolated struct MessageAPI: Sendable {
     }
 
     private func readRows<Row: Decodable>(_ table: String, query: [String: String]) async throws -> [Row] {
-        let url = baseURL.appending(path: "tables/\(table)")
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            throw MessageAPIError.invalidResponse
-        }
-        components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
-        guard let requestURL = components.url else { throw MessageAPIError.invalidResponse }
-        var request = URLRequest(url: requestURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpShouldHandleCookies = false
-
-        let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse else { throw MessageAPIError.invalidResponse }
-        guard (200..<300).contains(response.statusCode) else { throw MessageAPIError.unavailable }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let value = try container.decode(String.self)
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: value) { return date }
-            formatter.formatOptions = [.withInternetDateTime]
-            if let date = formatter.date(from: value) { return date }
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid message date")
-        }
+        let (data, _) = try await send(path: "tables/\(table)", query: query)
+        let decoder = Self.makeDecoder()
         do {
             let rows = try decoder.decode(Rows<Row>.self, from: data).data
             guard rows.count <= (Int(query["limit"] ?? "0") ?? 0) else {
@@ -114,6 +91,21 @@ nonisolated struct MessageAPI: Sendable {
         }
     }
 
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: value) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: value) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid message date")
+        }
+        return decoder
+    }
+
     private struct Rows<Row: Decodable>: Decodable {
         let data: [Row]
     }
@@ -122,11 +114,17 @@ nonisolated struct MessageAPI: Sendable {
 nonisolated enum MessageAPIError: LocalizedError {
     case unavailable
     case invalidResponse
+    case sessionExpired
+    case forbidden
+    case notice(String)
 
     var errorDescription: String? {
         switch self {
-        case .unavailable: "Messages are unavailable right now. Please try again."
-        case .invalidResponse: "Couldn’t load these messages. Please try again."
+        case .unavailable: "Yapern is unavailable right now. Please try again."
+        case .sessionExpired: "Your session has expired. Sign in again to continue."
+        case .forbidden: "You don’t have permission to do this."
+        case .notice(let message): message
+        case .invalidResponse: "Couldn’t read the response from Yapern. Please try again."
         }
     }
 }

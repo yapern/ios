@@ -6,9 +6,10 @@ nonisolated enum MessageContent {
         let id: Int
         let text: String
         let url: URL?
+        var isPreviewImage = false
 
         var imageURL: URL? {
-            guard let url, ["png", "gif", "jpg", "webp"].contains(url.pathExtension.lowercased()) else { return nil }
+            guard let url, youtubeVideoID == nil, isPreviewImage || ["png", "gif", "jpg", "jpeg", "webp"].contains(url.pathExtension.lowercased()) else { return nil }
             return url
         }
 
@@ -52,7 +53,11 @@ nonisolated enum MessageContent {
             if start > position {
                 parts.append(Part(id: parts.count, text: source.substring(with: NSRange(location: position, length: start - position)), url: nil))
             }
-            parts.append(Part(id: parts.count, text: value, url: url))
+            let firstLine = body.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+            let isPreview = start == 0 && firstLine.count > 1 &&
+                value == String(firstLine[0]).trimmingCharacters(in: .whitespaces) &&
+                value.range(of: #"^https?://"#, options: [.regularExpression, .caseInsensitive]) != nil
+            parts.append(Part(id: parts.count, text: value, url: url, isPreviewImage: isPreview))
             position = start + (value as NSString).length
         }
         if position < source.length {
