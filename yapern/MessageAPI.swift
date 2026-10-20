@@ -7,10 +7,6 @@ nonisolated struct MessageAPI: Sendable {
     private let session: URLSession
     private let baseURL: URL
 
-    // This is the website's public browser key, not an owner or account key.
-    private static let publicKey = "bff_pk_1f9bb9fd543d6a5476ad7ce210577c2479d290a5cdc06282de9eb884d57005c4"
-    private static let projectID = "90da3093-84b6-4cd7-a39a-a8afc39403b8"
-
     init(session: URLSession = .shared, baseURL: URL = URL(string: "https://api.yapern.com")!) {
         self.session = session
         self.baseURL = baseURL
@@ -82,14 +78,13 @@ nonisolated struct MessageAPI: Sendable {
     }
 
     private func readRows<Row: Decodable>(_ table: String, query: [String: String]) async throws -> [Row] {
-        let url = baseURL.appending(path: "bff/data/\(Self.projectID)/tables/\(table)")
+        let url = baseURL.appending(path: "tables/\(table)")
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw MessageAPIError.invalidResponse
         }
         components.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
         guard let requestURL = components.url else { throw MessageAPIError.invalidResponse }
         var request = URLRequest(url: requestURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
-        request.setValue(Self.publicKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.httpShouldHandleCookies = false
 

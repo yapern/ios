@@ -5,8 +5,10 @@ final class MessageAPITests: XCTestCase {
     func testPublicFeedRequestFiltersPaginatesAndDecodesBothDateFormats() async throws {
         let session = makeStubSession { request in
             let query = request.query
-            XCTAssertTrue(request.url!.path.hasSuffix("/tables/messages"))
-            XCTAssertTrue(request.value(forHTTPHeaderField: "apikey")?.hasPrefix("bff_pk_") == true)
+            XCTAssertEqual(request.url!.scheme, "https")
+            XCTAssertEqual(request.url!.host, "api.yapern.com")
+            XCTAssertEqual(request.url!.path, "/tables/messages")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey"))
             XCTAssertNil(request.value(forHTTPHeaderField: "authorization"))
             XCTAssertFalse(request.httpShouldHandleCookies)
             XCTAssertEqual(query["board_id"], "eq.apps")
@@ -22,6 +24,32 @@ final class MessageAPITests: XCTestCase {
         let messages = try await MessageAPI(session: session).fetchMessages(offset: 20, boardID: "apps")
         XCTAssertEqual(messages.map(\.id), ["a", "b"])
         XCTAssertEqual(messages[0].createdAt.timeIntervalSince(messages[1].createdAt), 0.822, accuracy: 0.001)
+    }
+
+    func testBoardsUsePublicTableEndpoint() async throws {
+        let session = makeStubSession { request in
+            XCTAssertEqual(request.url!.path, "/tables/boards")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey"))
+            XCTAssertEqual(request.query, [
+                "select": "id,slug,name,description", "order": "slug.asc", "limit": "100", "offset": "0",
+            ])
+            return .rows([["id": "general", "slug": "general", "name": "General", "description": "Discussion"]])
+        }
+        defer { session.invalidateAndCancel() }
+        let boards = try await MessageAPI(session: session).fetchBoards()
+        XCTAssertEqual(boards.map(\.id), ["general"])
+    }
+
+    func testAuthorsUsePublicTableEndpoint() async throws {
+        let session = makeStubSession { request in
+            XCTAssertEqual(request.url!.path, "/tables/users")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey"))
+            XCTAssertEqual(request.query, ["select": "id,name", "id": "eq.user", "limit": "1"])
+            return .rows([["id": "user", "name": " Alex "]])
+        }
+        defer { session.invalidateAndCancel() }
+        let name = try await MessageAPI(session: session).fetchAuthor(id: "user")
+        XCTAssertEqual(name, "Alex")
     }
 
     func testRejectsWrongBoardInvalidDatesAndOversizedPages() async {
@@ -43,6 +71,8 @@ final class MessageAPITests: XCTestCase {
 
     func testRepliesReadAllPagesInChronologicalOrder() async throws {
         let session = makeStubSession { request in
+            XCTAssertEqual(request.url!.path, "/tables/replies")
+            XCTAssertNil(request.value(forHTTPHeaderField: "apikey"))
             XCTAssertEqual(request.query["message_id"], "eq.message")
             XCTAssertEqual(request.query["order"], "created_at.asc")
             let offset = Int(request.query["offset"]!)!
